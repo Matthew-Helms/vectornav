@@ -1,0 +1,9 @@
+Header header
+bool not_tracking
+bool sufficient_dynamic_motion
+bool tracking
+bool gps_fix
+bool time_error
+bool imu_error
+bool mag_pres_error
+bool gps_error

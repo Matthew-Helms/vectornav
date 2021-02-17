@@ -40,7 +40,7 @@
 #include <tf2/LinearMath/Transform.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
-ros::Publisher pubIMU, pubMag, pubGPS, pubOdom, pubTemp, pubPres;
+ros::Publisher pubStatus, pubIMU, pubMag, pubGPS, pubOdom, pubTemp, pubPres;
 ros::ServiceServer resetOdomSrv;
 
 //Unused covariances initilized to zero's
@@ -58,6 +58,9 @@ struct UserData {
 #include "vn/sensors.h"
 #include "vn/compositedata.h"
 #include "vn/util.h"
+
+// Include the custom status message header
+#include <Vn_ins_status.h>
 
 using namespace std;
 using namespace vn::math;
@@ -107,6 +110,7 @@ int main(int argc, char *argv[])
     ros::NodeHandle n;
     ros::NodeHandle pn("~");
 
+    pubStatus = n.advertise<vectornav::Vn_ins_status>("vectornav/Status", 1000);
     pubIMU = n.advertise<sensor_msgs::Imu>("vectornav/IMU", 1000);
     pubMag = n.advertise<sensor_msgs::MagneticField>("vectornav/Mag", 1000);
     pubGPS = n.advertise<sensor_msgs::NavSatFix>("vectornav/GPS", 1000);
@@ -275,6 +279,27 @@ void BinaryAsyncMessageReceived(void* userData, Packet& p, size_t index)
 {
     vn::sensors::CompositeData cd = vn::sensors::CompositeData::parse(p);
     UserData user_data = *static_cast<UserData*>(userData);
+
+
+    //STATUS
+    uint8_t insStatus;
+    vectornav::Vn_ins_status msgSTATUS;
+    msgSTATUS.header.stamp = ros::Time::now();
+    msgSTATUS.header.frame_id = frame_id;
+    
+    if (cd.hasInsStatus())
+    {
+        insStatus = cd.insStatus();
+        msgSTATUS.not_tracking = insStatus & INSSTATUS_NOT_TRACKING;    //(insStatus<<7)>>7;
+        msgSTATUS.sufficient_dynamic_motion = insStatus & INSSTATUS_SUFFICIENT_DYNAMIC_MOTION;  //(insStatus<<6)>>7;
+        msgSTATUS.tracking = insStatus & INSSTATUS_TRACKING;    //(insStatus<<5)>>7;
+        msgSTATUS.gps_fix = insStatus & INSSTATUS_GPS_FIX;  //(insStatus<<4)>>7;
+        msgSTATUS.time_error = insStatus & INSSTATUS_TIME_ERROR;    //(insStatus<<3)>>7;
+        msgSTATUS.imu_error = insStatus & INSSTATUS_IMU_ERROR;  //(insStatus<<2)>>7;
+        msgSTATUS.mag_pres_error = insStatus & INSSTATUS_MAG_PRES_ERROR;    //(insStatus<<1)>>7;
+        msgSTATUS.gps_error = insStatus & INSSTATUS_GPS_ERROR;  //insStatus>>7;
+        pubStatus.publish(msgSTATUS);
+    }
 
     // IMU
     sensor_msgs::Imu msgIMU;
